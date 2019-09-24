@@ -3,172 +3,144 @@ function eval() {
     return;
 }
 
-const ex = '2+1';
-console.log(ex)
-console.log(expressionCalculator(ex));
+console.log = function () {
+}
 
 function expressionCalculator(expr) {
+    console.log('CALC EXPR', expr);
     let result = null;
-    for (let cursor = -1; cursor < expr.length; cursor++) {
-
-        const token = expr[cursor];
-        if (token === ' ') {
-            continue;
-        }
-        const next = getNext(expr, cursor, true);
-        console.log(next);
-        switch (next.type) {
+    while (expr.length > 0) {
+        const token = expr[0];
+        const parsed = parseToken(expr, true);
+        console.log(parsed);
+        switch (parsed.type) {
+            case 'whitespace':
+                expr = crop(expr, parsed.length);
+                continue;
             case 'number':
-                result = next.value;
-                cursor = next.cursor;
-                console.log('sssss:', next.cursor)
-                break;
+                result = parsed.value;
+                expr = crop(expr, parsed.length);
+                continue;
             case "sum":
-                const sum = result + expressionCalculator(next.value);
-                console.log('summed = ' + sum);
-                return sum;
+                return result + expressionCalculator(parsed.value);
             case "sub":
-                console.log('need to sub ' + next.value)
-                result = result - expressionCalculator(next.value);
-                cursor = next.cursor - 1;
-                break;
+                result = result - expressionCalculator(parsed.value);
+                expr = crop(expr, parsed.length);
+                continue;
             case "multiply":
-                result = result * expressionCalculator(next.value);
-                console.log('multiplied = ' + result);
-                cursor = next.cursor - 1;
-                break;
+                result = result * expressionCalculator(parsed.value);
+                expr = crop(expr, parsed.length);
+                continue;
             case "divide":
-                result = result / expressionCalculator(next.value);
-                console.log('divided = ' + result);
-                cursor = next.cursor - 1;
-                break;
+                result = result / expressionCalculator(parsed.value);
+                expr = crop(expr, parsed.length);
+                continue;
             case "expression":
-                result = expressionCalculator(next.value);
-                cursor = next.cursor - 1;
+                result = expressionCalculator(parsed.value);
+                expr = crop(expr, parsed.length);
         }
-
-        // if (next.type === 'expression') {
-        //     result = expressionCalculator(next.value);
-        // }
-
-        cursor--;
     }
-    console.log("wrf")
     return result;
 }
 
 
-function getNext(expr, cursor, show = false) {
-    const next_cursor = cursor + 1;
-    const token = expr[next_cursor];
-    if (show) {
-        console.log("token=" + token, 'cursor=', cursor)
+function parseToken(expr, verbose = false) {
+    const token = expr[0];
+    if (verbose) {
+        console.log("token=" + token)
     }
     switch (true) {
         case /\d/.test(token):
-            return parseNumber(expr, next_cursor);
+            return parseNumber(expr);
         case token === '(':
-            return parseExpression(expr, cursor);
+            return parseExpression(expr);
         case token === '+':
-            return parseSum(expr, next_cursor);
+            return parseSum(expr);
         case token === '*':
-            return parseMult(expr, cursor, show);
+            return parseMult(expr, verbose);
         case token === '-':
-            return parseSubtract(expr, cursor);
+            return parseSubtract(expr);
         case token === '/':
-            return parseDiv(expr, cursor);
+            return parseDiv(expr);
+        case token === ' ':
+            return {type: 'whitespace', value: ' ', length: 1}
         default:
-            console.log(token, cursor);
+            console.log(token);
 
             throw 'not implemented';
     }
 }
 
-function parseSum(str, cursor) {
-    const expression = str.substr(cursor);
-    return {type: 'sum', value: expression, cursor: cursor + expression.length}
+function parseSum(str) {
+    const expression = str.substr(1);
+    return {type: 'sum', value: expression, length: expression.length + 1}
 }
 
-function parseMult(str, cursor, show = false) {
-    console.log('parse multipliing')
-    const length = getMultiplyExpressionLength(str.substr(cursor + 1), show);
-    const expression = str.substr((cursor + 1), length)
-    if (show) {
-        console.log(length)
-        console.log('so expression will be: ', expression, 'cursor:', cursor + expression.length + 1)
-    }
-    return {type: 'multiply', value: expression, cursor: cursor + expression.length + 1}
-
+function parseMult(str) {
+    const expression = getNearestExpression(str.substr(1));
+    return {type: 'multiply', value: expression, length: expression.length + 1}
 }
 
-function parseSubtract(str, cursor) {
-    const length = getMultiplyExpressionLength(str.substr(cursor + 1));
-    const expression = str.substr((cursor + 1), length)
-    return {type: 'sub', value: expression, cursor: cursor + expression.length + 1}
+function parseSubtract(str) {
+    const expression = getNearestExpression(str.substr(1));
+    return {type: 'sub', value: expression, length: expression.length + 1}
 
 }
 
-function parseDiv(str, cursor) {
-    const length = getMultiplyExpressionLength(str.substr(cursor + 1));
-    const expression = str.substr((cursor + 1), length)
-    return {type: 'divide', value: expression, cursor: cursor + expression.length + 1}
 
-}
-
-function getMultiplyExpressionLength(str, show = false) {
-    console.log(str)
-    let length = 0;
-    let cursor = 0;
-
-    let next;
+function getNearestExpression(expr) {
+    let offset = 0;
+    let str = expr;
     while (str.length > 0) {
-        next = getNext(str, cursor);
-        if (show) {
-            console.log('*next:', next)
+        const parsed = parseToken(str);
+        if (parsed.type === "sum" || parsed.type === "sub") {
+            return expr.substr(0, offset);
+        } else {
+            offset += parsed.length;
+            str = crop(str, parsed.length);
         }
-        if (next.type === 'sub' || next.type === 'sum') {
-            if (show) {
-                console.log('break, so length=', length)
-            }
-            return length;
-        }
-        length += next.cursor;
-        str = str.substr(length);
-        cursor = 0;
     }
-    if (show) {
-        console.log("return length", length)
-    }
-    return length;
+    return expr.substr(0, offset);
 }
 
+function parseDiv(str) {
+    const expression = getNearestExpression(str.substr(1));
+    return {type: 'divide', value: expression, length: expression.length + 1}
+}
 
-function parseExpression(str, cursor) {
-    const start = cursor;
+function parseExpression(str) {
+    const start = 0;
+    let end = 0;
     const stack = [];
     stack.push('(');
     while (stack.length > 0) {
-        cursor += 1;
-        if (str[cursor] === '(') {
+        end += 1;
+        if (str[end] === '(') {
             stack.push('(')
         }
-        if (str[cursor] === ')') {
+        if (str[end] === ')') {
             stack.pop();
         }
-        if (stack.length > 0 && str[cursor] === undefined) {
+        if (stack.length > 0 && str[end] === undefined) {
             throw 'ExpressionError: Brackets must be paired'
         }
     }
-    return {type: 'expression', value: str.substring(start + 1, cursor), cursor: cursor + 1};
+    const expression = str.substring(start + 1, end);
+    return {type: 'expression', value: expression, length: expression.length + 2};
 }
 
-function parseNumber(str, cursor) {
-    let result = ''
-    while (/\d/.test(str[cursor])) {
-        result += str[cursor];
-        cursor++;
+function parseNumber(str) {
+    let offset = 0;
+    let result = '';
+    while (/\d/.test(str[offset])) {
+        result += str[offset];
+        offset++;
     }
-    return {type: 'number', value: parseFloat(result), cursor: cursor - 1};
+    return {type: 'number', value: parseFloat(result), length: result.length};
+}
+
+function crop(expr, num) {
+    return expr.substr(num);
 }
 
 module.exports = {
