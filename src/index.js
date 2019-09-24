@@ -3,16 +3,10 @@ function eval() {
     return;
 }
 
-console.log = function () {
-}
-
 function expressionCalculator(expr) {
-    console.log('CALC EXPR', expr);
     let result = null;
     while (expr.length > 0) {
-        const token = expr[0];
         const parsed = parseToken(expr, true);
-        console.log(parsed);
         switch (parsed.type) {
             case 'whitespace':
                 expr = crop(expr, parsed.length);
@@ -32,7 +26,11 @@ function expressionCalculator(expr) {
                 expr = crop(expr, parsed.length);
                 continue;
             case "divide":
-                result = result / expressionCalculator(parsed.value);
+                const expressionResult = expressionCalculator(parsed.value);
+                if (expressionResult === 0) {
+                    throw 'TypeError: Devision by zero.'
+                }
+                result = result / expressionResult;
                 expr = crop(expr, parsed.length);
                 continue;
             case "expression":
@@ -47,11 +45,11 @@ function expressionCalculator(expr) {
 function parseToken(expr, verbose = false) {
     const token = expr[0];
     if (verbose) {
-        console.log("token=" + token)
     }
     switch (true) {
         case /\d/.test(token):
             return parseNumber(expr);
+        case token === ')':
         case token === '(':
             return parseExpression(expr);
         case token === '+':
@@ -65,8 +63,6 @@ function parseToken(expr, verbose = false) {
         case token === ' ':
             return {type: 'whitespace', value: ' ', length: 1}
         default:
-            console.log(token);
-
             throw 'not implemented';
     }
 }
@@ -77,8 +73,13 @@ function parseSum(str) {
 }
 
 function parseMult(str) {
-    const expression = getNearestExpression(str.substr(1));
+    const expression = getNearestExpression(str.substr(1), false);
     return {type: 'multiply', value: expression, length: expression.length + 1}
+}
+
+function parseDiv(str) {
+    const expression = getNearestExpression(str.substr(1), false);
+    return {type: 'divide', value: expression, length: expression.length + 1}
 }
 
 function parseSubtract(str) {
@@ -88,27 +89,37 @@ function parseSubtract(str) {
 }
 
 
-function getNearestExpression(expr) {
+function getNearestExpression(expr, eager = true) {
     let offset = 0;
     let str = expr;
     while (str.length > 0) {
         const parsed = parseToken(str);
-        if (parsed.type === "sum" || parsed.type === "sub") {
-            return expr.substr(0, offset);
+        if (eager) {
+            if (parsed.type === "sum" || parsed.type === "sub") {
+                return expr.substr(0, offset);
+            } else {
+                offset += parsed.length;
+                str = crop(str, parsed.length);
+            }
         } else {
-            offset += parsed.length;
-            str = crop(str, parsed.length);
+            if (parsed.type === 'whitespace') {
+                offset += parsed.length;
+                str = crop(str, parsed.length);
+            } else if (parsed.type === 'number' || parsed.type === 'expression') {
+                return expr.substr(0, offset + parsed.length);
+            } else {
+                throw 'System error';
+            }
         }
     }
     return expr.substr(0, offset);
 }
 
-function parseDiv(str) {
-    const expression = getNearestExpression(str.substr(1));
-    return {type: 'divide', value: expression, length: expression.length + 1}
-}
 
 function parseExpression(str) {
+    if (str[0] === ')') {
+        throw 'ExpressionError: Brackets must be paired'
+    }
     const start = 0;
     let end = 0;
     const stack = [];
